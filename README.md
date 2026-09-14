@@ -9,7 +9,7 @@ User
   |
   v
 JARVIS Agent Core
-  |-- Tool Router -> deterministic Python tools -> result -> Agent Core
+  |-- Tool Router -> deterministic Python tools -> verified results -> Agent Core
   |
   `-- Model Router
         |-- Ollama (local/private/default)
@@ -35,6 +35,7 @@ JARVIS is intentionally an agent, not a text-only chatbot. The model decides whe
 `JARVIS_BRAIN_MODE` supports:
 
 - `local` — Ollama only
+- `cloud` — try OmniRoute, then NVIDIA, then OpenRouter, then local fallback
 - `nvidia` — direct NVIDIA endpoint, with local fallback on failure
 - `openrouter` — direct OpenRouter endpoint, with local fallback on failure
 - `omniroute` — local OmniRoute gateway, with local fallback on failure
@@ -88,13 +89,26 @@ $env:JARVIS_BRAIN_MODE="openrouter"
 
 Use a model identifier supported by your OpenRouter account/configuration through `JARVIS_OPENROUTER_MODEL`.
 
+## Diagnostics and evidence
+
+JARVIS now has read-only diagnostics for the local environment:
+
+- `system_info` — OS, Python and machine architecture
+- `resource_info` — logical CPU count, RAM usage and disk usage
+- `project_health` — required project paths, Git status, Python version and the local pytest suite
+
+Tool results are treated as verified evidence. JARVIS is instructed not to replace current tool evidence with generic assumptions about Python versions or project compatibility.
+
 ## Current capabilities
 
 - Chat with the local Ollama model
 - Multi-provider model routing with local fallback
-- Tool routing with structured `TOOL_CALL:<name>` decisions
-- System information and Downloads tools
-- Deterministic filesystem organization
+- Explicit cloud escalation through OmniRoute/NVIDIA/OpenRouter
+- Multi-tool agent loop
+- Structured tool calls with optional JSON arguments
+- System and resource diagnostics
+- JARVIS project-health diagnostics
+- Downloads inspection and deterministic filesystem organization
 - Human approval before filesystem mutation
 - Preflight validation
 - Post-action verification
@@ -118,21 +132,25 @@ ollama pull qwen3:8b
 python -m venv .venv
 ```
 
-5. Run JARVIS:
+5. Install the test dependency:
 
 ```powershell
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pip install pytest
 ```
 
-## Tests
-
-The router has unit tests for local-first selection, gateway priority, explicit modes, and local fallback. Run them from the repository root:
+6. Run the tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-The tests mock network providers, so they do not require API keys or live cloud services.
+7. Run JARVIS:
+
+```powershell
+.\.venv\Scripts\python.exe main.py
+```
+
+The router tests mock network providers, so they do not require API keys or live cloud services.
 
 ## Safety model
 
