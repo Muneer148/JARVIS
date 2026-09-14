@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
 import re
-from typing import Callable, Any
+from typing import Any, Callable
 
-from brain.router import chat
 from brain.prompts import SYSTEM_PROMPT
+from brain.router import chat
 from config.settings import MAX_TOOL_ROUNDS
 
-TOOL_PATTERN = re.compile(r"^TOOL_CALL:([A-Za-z_][A-Za-z0-9_]*)\s*$", re.MULTILINE)
+TOOL_PATTERN = re.compile(
+    r"^TOOL_CALL:(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?::(?P<args>\{.*\}))?\s*$",
+    re.MULTILINE,
+)
 
 
 class Agent:
@@ -15,32 +19,48 @@ class Agent:
         self.tools = tools
         self.messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
+    def _execute_tool(self, tool_name: str, raw_args: str | None) -> dict[str, Any] | Any:
+        tool = self.tools.get(tool_name)
+        if tool is None:
+            return {"status": "error", "error": f"Unknown tool: {tool_name}"}
+
+        args: dict[str, Any] = {}
+        if raw_args:
+            try:
+                parsed = json.loads(raw_args)
+            except json.JSONDecodeError as exc:
+                return {"status": "error", "error": f"Invalid tool arguments: {exc.msg}"}
+            if not isinstance(parsed, dict):
+                return {"status": "error", "error": "Tool arguments must be a JSON object."}
+            args = parsed
+
+        try:
+            return tool(**args)
+        except TypeError as exc:
+            return {"status": "error", "error": f"Invalid arguments for {tool_name}: {exc}"}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
     def run(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
-        for _ in range(MAX_TOOL_ROUNDS):
+        for round_number in range(1, MAX_TOOL_ROUNDS + 1):
             response, provider = chat(self.messages, user_text)
             match = TOOL_PATTERN.search(response.strip())
             if not match:
                 self.messages.append({"role": "assistant", "content": response})
                 return response
 
-            tool_name = match.group(1)
-            tool = self.tools.get(tool_name)
-            if tool is None:
-                result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
-            else:
-                try:
-                    result = tool()
-                except TypeError:
-                    result = {"status": "error", "error": "Tool requires arguments that were not provided by the current protocol."}
-                except Exception as exc:
-                    result = {"status": "error", "error": str(exc)}
-
+            tool_name = match.group("name")
+            result = self._execute_tool(tool_name, match.group("args"))
             self.messages.append({"role": "assistant", "content": response})
-            tool_result = (
-                f"The model provider used for this step was `{provider}`. "
-                f"Tool `{tool_name}` result for the user's request `{user_text}`:\n{result}"
-            )
-            self.messages.append({"role": "user", "content": tool_result})
+            tool_result = {
+                "status": "tool_result",
+                "round": round_number,
+                "provider": provider,
+                "tool": tool_name,
+                "user_request": user_text,
+                "result": result,
+            }
+            self.messages.append({"role": "user", "content": json.dumps(tool_result, default=str)})
 
         return "I reached the tool-operation limit for this request without producing a final answer."
