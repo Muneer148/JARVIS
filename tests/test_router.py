@@ -44,6 +44,23 @@ def test_explicit_mode_is_respected(monkeypatch) -> None:
     assert router.choose_provider("hello") == "omniroute"
 
 
+def test_explicit_cloud_mode_is_respected(monkeypatch) -> None:
+    monkeypatch.setattr(router, "BRAIN_MODE", "cloud")
+    assert router.choose_provider("hello") == "cloud"
+
+
+def test_cloud_mode_prefers_omniroute(monkeypatch) -> None:
+    monkeypatch.setattr(router, "BRAIN_MODE", "cloud")
+    monkeypatch.setattr(router.omniroute, "available", lambda: True)
+    monkeypatch.setattr(router.nvidia, "available", lambda: True)
+    monkeypatch.setattr(router.openrouter, "available", lambda: True)
+    monkeypatch.setattr(router.omniroute, "chat", lambda messages, model: "gateway answer")
+
+    response, provider = router.chat([{"role": "user", "content": "hello"}], "hello")
+    assert response == "gateway answer"
+    assert provider == "omniroute"
+
+
 def test_gateway_failure_returns_local_fallback(monkeypatch) -> None:
     monkeypatch.setattr(router, "BRAIN_MODE", "omniroute")
     monkeypatch.setattr(router.omniroute, "chat", lambda messages, model: (_ for _ in ()).throw(RuntimeError("gateway down")))
