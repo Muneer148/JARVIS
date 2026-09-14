@@ -8,19 +8,36 @@ from typing import Any
 
 from config.settings import REQUEST_TIMEOUT_SECONDS
 
-OMNIROUTE_URL = os.getenv("JARVIS_OMNIROUTE_URL", "http://localhost:20128/v1/chat/completions")
+# Match OmniRoute's own environment names. A full URL override is retained for
+# compatibility with older JARVIS configs.
+OMNIROUTE_BASE_URL = os.getenv("OMNIROUTE_BASE_URL", "http://localhost:20128/v1").rstrip("/")
+OMNIROUTE_URL = os.getenv(
+    "JARVIS_OMNIROUTE_URL",
+    f"{OMNIROUTE_BASE_URL}/chat/completions",
+)
 OMNIROUTE_API_KEY = os.getenv("OMNIROUTE_API_KEY", "")
+OMNIROUTE_ENABLED = os.getenv("JARVIS_OMNIROUTE_ENABLED", "false").lower() == "true"
 
 
 def available() -> bool:
-    # OmniRoute is normally local. An API key is optional unless the local
-    # gateway has REQUIRE_API_KEY enabled.
-    return bool(os.getenv("JARVIS_OMNIROUTE_ENABLED", "false").lower() == "true")
+    """Return whether OmniRoute is configured as a usable JARVIS gateway.
+
+    OmniRoute's local server is currently protected by an API key. Requiring
+    the key here prevents auto-routing from selecting a gateway that will
+    predictably return HTTP 401 and then falling back after a wasted request.
+    """
+    return OMNIROUTE_ENABLED and bool(OMNIROUTE_API_KEY.strip())
 
 
 def chat(messages: list[dict[str, str]], model: str) -> str:
-    if not available():
-        raise RuntimeError("OmniRoute is not enabled. Set JARVIS_OMNIROUTE_ENABLED=true when the local gateway is running.")
+    if not OMNIROUTE_ENABLED:
+        raise RuntimeError(
+            "OmniRoute is disabled. Set JARVIS_OMNIROUTE_ENABLED=true when the local gateway is running."
+        )
+    if not OMNIROUTE_API_KEY.strip():
+        raise RuntimeError(
+            "OMNIROUTE_API_KEY is not configured. Add the local OmniRoute API key to your environment; never commit it to Git."
+        )
 
     payload: dict[str, Any] = {
         "model": model,
@@ -28,9 +45,10 @@ def chat(messages: list[dict[str, str]], model: str) -> str:
         "temperature": 0.2,
         "stream": False,
     }
-    headers = {"Content-Type": "application/json"}
-    if OMNIROUTE_API_KEY.strip():
-        headers["Authorization"] = f"Bearer {OMNIROUTE_API_KEY}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OMNIROUTE_API_KEY}",
+    }
 
     request = urllib.request.Request(
         OMNIROUTE_URL,
