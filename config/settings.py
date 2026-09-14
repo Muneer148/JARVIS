@@ -9,3 +9,7 @@ DOWNLOADS_DIR = Path(os.getenv("JARVIS_DOWNLOADS_DIR", str(Path.home() / "Downlo
 TERMINAL_ENABLED = os.getenv("JARVIS_TERMINAL_ENABLED", "false").lower() == "true"
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("JARVIS_REQUEST_TIMEOUT", "180"))
 MAX_TOOL_ROUNDS = int(os.getenv("JARVIS_MAX_TOOL_ROUNDS", "5"))
+
+# Brain routing: auto = local first with optional NVIDIA escalation.
+BRAIN_MODE = os.getenv("JARVIS_BRAIN_MODE", "auto").lower()
+NVIDIA_MODEL = os.getenv("JARVIS_NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
