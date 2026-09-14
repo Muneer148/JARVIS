@@ -5,40 +5,96 @@ A local-first, action-capable personal AI assistant.
 ## Architecture
 
 ```text
-User -> JARVIS controller -> Model Router -> Brain -> tool decision -> Python tool -> result -> Brain -> response
-                                  |              |
-                                  |              +-- Ollama / Qwen3:8B (local)
-                                  +----------------- NVIDIA hosted models (optional free endpoint)
+User
+  |
+  v
+JARVIS Agent Core
+  |-- Tool Router -> deterministic Python tools -> result -> Agent Core
+  |
+  `-- Model Router
+        |-- Ollama (local/private/default)
+        |-- OmniRoute (local gateway -> configured upstream)
+        |-- NVIDIA (direct optional gateway)
+        `-- OpenRouter (direct optional gateway)
 ```
 
-JARVIS is intentionally built as an agent, not a text-only chatbot. The model plans and selects tools; Python performs deterministic actions; the safety layer validates actions and handles permission boundaries.
+JARVIS is intentionally an agent, not a text-only chatbot. The model decides when a tool is needed; Python performs deterministic actions; the safety layer validates actions and handles permission boundaries. Model routing and tool routing are separate concerns.
 
 ## Current stack
 
 - Python 3.14+
 - Ollama + Qwen3:8B for the permanent local brain
-- Optional NVIDIA hosted inference through the OpenAI-compatible API
-- Local-first model routing with cloud fallback
-- Standard library first; optional dependencies are isolated
+- Optional OmniRoute local gateway
+- Optional NVIDIA hosted inference
+- Optional OpenRouter direct gateway
+- Local-first model routing with fallback
+- Standard library first; optional voice/vision/browser dependencies are isolated
 
 ## Model routing
 
 `JARVIS_BRAIN_MODE` supports:
 
 - `local` — Ollama only
-- `nvidia` — NVIDIA hosted model only
-- `auto` — local-first; selected complex/long requests can use NVIDIA when `NVIDIA_API_KEY` is configured, with local fallback if the hosted endpoint fails
+- `nvidia` — direct NVIDIA endpoint, with local fallback on failure
+- `openrouter` — direct OpenRouter endpoint, with local fallback on failure
+- `omniroute` — local OmniRoute gateway, with local fallback on failure
+- `auto` — Ollama for routine requests; selected complex/long requests prefer OmniRoute when configured, then NVIDIA, then OpenRouter, then Ollama
 
-The NVIDIA model is configurable. The current default is `nvidia/nemotron-3.5-lightning-30b-a3b`. NVIDIA's model catalog currently lists multiple free inference endpoints, including Nemotron 3.5 Lightning, Nemotron 3 Super 120B, Nemotron 3 Ultra 550B, DeepSeek V4 Flash, and Kimi K3. Availability and usage limits can change, so JARVIS keeps Ollama as the permanent local fallback.
+The important distinction is that **OmniRoute is a gateway/router, not another model**. JARVIS can therefore keep one model-routing interface while the local OmniRoute instance decides which configured upstream provider/model to use.
+
+### OmniRoute setup
+
+OmniRoute runs separately from JARVIS. Its default OpenAI-compatible API is:
+
+```text
+http://localhost:20128/v1
+```
+
+JARVIS expects a local OmniRoute API key because the installed OmniRoute server may require authentication. Configure the key only in the local environment:
+
+```powershell
+$env:JARVIS_OMNIROUTE_ENABLED="true"
+$env:OMNIROUTE_API_KEY="YOUR_LOCAL_OMNIROUTE_KEY"
+$env:JARVIS_OMNIROUTE_MODEL="auto"
+.\.venv\Scripts\python.exe main.py
+```
+
+If you use a non-default OmniRoute endpoint, set `OMNIROUTE_BASE_URL` or the full `JARVIS_OMNIROUTE_URL`. Do not commit API keys, passwords, tokens, cookies, or local `.env` files.
+
+JARVIS does **not** need to configure hundreds of OmniRoute providers. One working provider path is enough to validate the architecture; additional providers can be added later.
+
+## NVIDIA hosted models
+
+NVIDIA hosted inference can be enabled directly or selected by `auto` when OmniRoute is unavailable. Availability and usage limits can change, so Ollama remains the permanent local fallback.
+
+```powershell
+$env:NVIDIA_API_KEY="YOUR_KEY_HERE"
+$env:JARVIS_BRAIN_MODE="auto"
+$env:JARVIS_NVIDIA_MODEL="nvidia/nemotron-3.5-lightning-30b-a3b"
+.\.venv\Scripts\python.exe main.py
+```
+
+Never paste the key into Python source code or commit it to GitHub.
+
+## OpenRouter direct gateway
+
+OpenRouter is an optional external aggregation gateway. It is independent of the local OmniRoute process and is used only when configured.
+
+```powershell
+$env:OPENROUTER_API_KEY="YOUR_KEY_HERE"
+$env:JARVIS_BRAIN_MODE="openrouter"
+.\.venv\Scripts\python.exe main.py
+```
+
+Use a model identifier supported by your OpenRouter account/configuration through `JARVIS_OPENROUTER_MODEL`.
 
 ## Current capabilities
 
 - Chat with the local Ollama model
-- Optional NVIDIA hosted brain
-- Model routing with local fallback
+- Multi-provider model routing with local fallback
 - Tool routing with structured `TOOL_CALL:<name>` decisions
-- Analyze the Downloads folder
-- Organize Downloads by deterministic file-extension rules
+- System information and Downloads tools
+- Deterministic filesystem organization
 - Human approval before filesystem mutation
 - Preflight validation
 - Post-action verification
@@ -62,24 +118,21 @@ ollama pull qwen3:8b
 python -m venv .venv
 ```
 
-5. Run JARVIS without needing PowerShell execution-policy changes:
+5. Run JARVIS:
 
 ```powershell
 .\.venv\Scripts\python.exe main.py
 ```
 
-## NVIDIA hosted models
+## Tests
 
-NVIDIA provides free serverless inference endpoints for development. Generate an API key from NVIDIA's developer site, then set it only in your local environment.
+The router has unit tests for local-first selection, gateway priority, explicit modes, and local fallback. Run them from the repository root:
 
 ```powershell
-$env:NVIDIA_API_KEY="YOUR_KEY_HERE"
-$env:JARVIS_BRAIN_MODE="auto"
-$env:JARVIS_NVIDIA_MODEL="nvidia/nemotron-3.5-lightning-30b-a3b"
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m pytest
 ```
 
-Do not paste the key into Python source code or commit it to GitHub. A `.env.example` template is included for configuration reference; a real `.env` should remain local and ignored.
+The tests mock network providers, so they do not require API keys or live cloud services.
 
 ## Safety model
 
@@ -94,15 +147,16 @@ JARVIS never claims an action was completed merely because the model requested i
 ## Roadmap
 
 1. Core local + multi-model agent loop
-2. More filesystem operations
-3. Persistent memory
-4. Terminal and application control with explicit permission scopes
-5. MCP tool integration
-6. Browser automation
-7. Local speech-to-text and text-to-speech
-8. Vision and computer interaction
-9. Specialized model routing for embeddings, OCR, speech and vision
-10. Optional additional free model providers
+2. Harden multi-tool reasoning and tool schemas
+3. More filesystem operations
+4. Persistent memory
+5. Terminal and application control with explicit permission scopes
+6. MCP tool integration
+7. Browser automation
+8. Local speech-to-text and text-to-speech
+9. Vision and computer interaction
+10. Specialized model routing for embeddings, OCR, speech and vision
+11. Additional free/optional model providers
 
 ## Security
 
