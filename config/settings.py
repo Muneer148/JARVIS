@@ -3,6 +3,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from config.env import load_env
+
+# Load the repository-local .env before reading any JARVIS configuration.
+# Existing environment variables always take precedence.
+load_env()
+
 OLLAMA_URL = os.getenv("JARVIS_OLLAMA_URL", "http://localhost:11434/api/chat")
 MODEL = os.getenv("JARVIS_MODEL", "qwen3:8b")
 DOWNLOADS_DIR = Path(os.getenv("JARVIS_DOWNLOADS_DIR", str(Path.home() / "Downloads"))).expanduser().resolve()
