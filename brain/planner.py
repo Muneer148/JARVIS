@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 from typing import Callable, Any
 
-from brain.ollama import chat
+from brain.router import chat
 from brain.prompts import SYSTEM_PROMPT
-from config.settings import MAX_TOOL_ROUNDS, MODEL
+from config.settings import MAX_TOOL_ROUNDS
 
 TOOL_PATTERN = re.compile(r"^TOOL_CALL:([A-Za-z_][A-Za-z0-9_]*)\s*$", re.MULTILINE)
 
@@ -18,7 +18,7 @@ class Agent:
     def run(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
         for _ in range(MAX_TOOL_ROUNDS):
-            response = chat(self.messages, MODEL)
+            response, provider = chat(self.messages, user_text)
             match = TOOL_PATTERN.search(response.strip())
             if not match:
                 self.messages.append({"role": "assistant", "content": response})
@@ -37,7 +37,10 @@ class Agent:
                     result = {"status": "error", "error": str(exc)}
 
             self.messages.append({"role": "assistant", "content": response})
-            tool_result = f"Tool `{tool_name}` result for the user's request `{user_text}`:\n{result}"
+            tool_result = (
+                f"The model provider used for this step was `{provider}`. "
+                f"Tool `{tool_name}` result for the user's request `{user_text}`:\n{result}"
+            )
             self.messages.append({"role": "user", "content": tool_result})
 
         return "I reached the tool-operation limit for this request without producing a final answer."
