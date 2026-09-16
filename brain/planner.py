@@ -7,6 +7,7 @@ from typing import Any, Callable
 from brain.prompts import SYSTEM_PROMPT
 from brain.router import chat
 from config.settings import MAX_TOOL_ROUNDS
+from safety.permissions import PermissionEngine
 from tools.base import ToolSpec
 
 TOOL_PATTERN = re.compile(
@@ -16,8 +17,13 @@ TOOL_PATTERN = re.compile(
 
 
 class Agent:
-    def __init__(self, tools: dict[str, ToolSpec | Callable[..., Any]]) -> None:
+    def __init__(
+        self,
+        tools: dict[str, ToolSpec | Callable[..., Any]],
+        permission_engine: PermissionEngine | None = None,
+    ) -> None:
         self.tools = tools
+        self.permission_engine = permission_engine or PermissionEngine()
         self.messages: list[dict[str, str]] = [
             {"role": "system", "content": self._system_prompt_with_tools()}
         ]
@@ -29,10 +35,7 @@ class Agent:
             if isinstance(tool, ToolSpec):
                 catalog.append(tool.schema())
             else:
-                catalog.append({
-                    "name": name,
-                    "description": "Legacy callable tool.",
-                })
+                catalog.append({"name": name, "description": "Legacy callable tool."})
         return f"{SYSTEM_PROMPT}\n\nLIVE TOOL CATALOG:\n{json.dumps(catalog, indent=2, default=str)}"
 
     def _execute_tool(self, tool_name: str, raw_args: str | None) -> dict[str, Any] | Any:
@@ -49,6 +52,16 @@ class Agent:
             if not isinstance(parsed, dict):
                 return {"status": "error", "error": "Tool arguments must be a JSON object."}
             args = parsed
+
+        if isinstance(tool, ToolSpec):
+            decision = self.permission_engine.authorize(tool)
+            if not decision.allowed:
+                return {
+                    "status": "approval_required",
+                    "tool": tool_name,
+                    "reason": decision.reason,
+                    "requires_approval": decision.requires_approval,
+                }
 
         try:
             if isinstance(tool, ToolSpec):
