@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from brain.planner import Agent
+from safety.permissions import PermissionEngine
 from tools.registry import make_registry
+
+
+def console_approval(tool, reason: str) -> bool:
+    """Ask the human before a privileged tool is executed."""
+    print(f"\n[JARVIS approval required]")
+    print(f"Tool: {tool.name}")
+    print(f"Risk: {tool.risk_level}")
+    print(f"Permissions: {', '.join(sorted(permission.value for permission in tool.permissions))}")
+    print(f"Reason: {reason}")
+    answer = input("Allow this action? (yes/no): ").strip().lower()
+    return answer in {"yes", "y"}
 
 
 def main() -> None:
@@ -10,7 +22,9 @@ def main() -> None:
     print("Type 'exit' or 'quit' to stop.")
     print("=" * 48)
 
-    agent = Agent(make_registry())
+    permission_engine = PermissionEngine(approval_callback=console_approval)
+    agent = Agent(make_registry(), permission_engine=permission_engine)
+
     while True:
         try:
             user_text = input("\nYou: ").strip()
