@@ -10,26 +10,16 @@ from config.settings import MAX_TOOL_ROUNDS
 from safety.permissions import PermissionEngine
 from tools.base import ToolSpec
 
-TOOL_PATTERN = re.compile(
-    r"^TOOL_CALL:(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?::(?P<args>\{.*\}))?\s*$",
-    re.MULTILINE,
-)
+TOOL_PATTERN = re.compile(r"^TOOL_CALL:(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?::(?P<args>\{.*\}))?\s*$", re.MULTILINE)
 
 
 class Agent:
-    def __init__(
-        self,
-        tools: dict[str, ToolSpec | Callable[..., Any]],
-        permission_engine: PermissionEngine | None = None,
-    ) -> None:
+    def __init__(self, tools: dict[str, ToolSpec | Callable[..., Any]], permission_engine: PermissionEngine | None = None) -> None:
         self.tools = tools
         self.permission_engine = permission_engine or PermissionEngine()
-        self.messages: list[dict[str, str]] = [
-            {"role": "system", "content": self._system_prompt_with_tools()}
-        ]
+        self.messages: list[dict[str, str]] = [{"role": "system", "content": self._system_prompt_with_tools()}]
 
     def _system_prompt_with_tools(self) -> str:
-        """Give the model the live registry contract instead of a stale tool list."""
         catalog: list[dict[str, Any]] = []
         for name, tool in sorted(self.tools.items()):
             if isinstance(tool, ToolSpec):
@@ -56,17 +46,11 @@ class Agent:
         if isinstance(tool, ToolSpec):
             decision = self.permission_engine.authorize(tool)
             if not decision.allowed:
-                return {
-                    "status": "approval_required",
-                    "tool": tool_name,
-                    "reason": decision.reason,
-                    "requires_approval": decision.requires_approval,
-                }
+                status = "approval_denied" if decision.reason == "user denied approval" else "approval_required"
+                return {"status": status, "tool": tool_name, "reason": decision.reason, "requires_approval": decision.requires_approval}
 
         try:
-            if isinstance(tool, ToolSpec):
-                return tool.execute(**args)
-            return tool(**args)
+            return tool.execute(**args) if isinstance(tool, ToolSpec) else tool(**args)
         except TypeError as exc:
             return {"status": "error", "error": f"Invalid arguments for {tool_name}: {exc}"}
         except Exception as exc:
@@ -84,14 +68,21 @@ class Agent:
             tool_name = match.group("name")
             result = self._execute_tool(tool_name, match.group("args"))
             self.messages.append({"role": "assistant", "content": response})
-            tool_result = {
-                "status": "tool_result",
-                "round": round_number,
-                "provider": provider,
-                "tool": tool_name,
-                "user_request": user_text,
-                "result": result,
-            }
-            self.messages.append({"role": "user", "content": json.dumps(tool_result, default=str)})
+
+            if isinstance(result, dict) and result.get("status") == "approval_denied":
+                self.messages.append({"role": "user", "content": json.dumps({"status": "tool_result", "tool": tool_name, "result": result})})
+                return f"I did not run '{tool_name}' because approval was denied."
+
+            self.messages.append({
+                "role": "user",
+                "content": json.dumps({
+                    "status": "tool_result",
+                    "round": round_number,
+                    "provider": provider,
+                    "tool": tool_name,
+                    "user_request": user_text,
+                    "result": result,
+                }, default=str),
+            })
 
         return "I reached the tool-operation limit for this request without producing a final answer."
