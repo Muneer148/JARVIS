@@ -11,13 +11,8 @@ from tools.terminal import terminal
 
 
 def make_registry() -> dict[str, ToolSpec]:
-    """Build the canonical JARVIS tool registry.
-
-    The registry deliberately contains metadata as well as handlers so the
-    agent can later expose the same contract through MCP, APIs, or UI tools.
-    """
+    """Build the canonical JARVIS tool registry."""
     tools = [
-        # ── Filesystem ────────────────────────────────────────────────
         ToolSpec(
             "analyze_downloads",
             "Inspect the Downloads directory and produce an organization analysis without changing files.",
@@ -34,7 +29,6 @@ def make_registry() -> dict[str, ToolSpec]:
             reversible=True,
             requires_approval=True,
         ),
-        # ── System diagnostics ────────────────────────────────────────
         ToolSpec(
             "system_info",
             "Read basic operating-system and machine information.",
@@ -56,7 +50,6 @@ def make_registry() -> dict[str, ToolSpec]:
             frozenset({Permission.READ}),
             risk_level="low",
         ),
-        # ── Terminal ──────────────────────────────────────────────────
         ToolSpec(
             "terminal",
             "Run an approved terminal command when terminal execution is explicitly enabled.",
@@ -65,62 +58,39 @@ def make_registry() -> dict[str, ToolSpec]:
             risk_level="high",
             requires_approval=True,
         ),
-        # ── Memory ───────────────────────────────────────────────────
         ToolSpec(
             "remember",
-            (
-                "Store a piece of information persistently for future recall. "
-                "Use this for facts the user explicitly wants JARVIS to remember: "
-                "preferences, names, schedules, notes. "
-                "Args: text (required), category (optional, e.g. 'preferences'), "
-                "tags (optional, comma-separated keywords)."
-            ),
+            "Store a piece of information persistently for future recall. Args: text, category, tags.",
             remember,
             frozenset({Permission.READ, Permission.WRITE}),
             risk_level="low",
         ),
         ToolSpec(
             "recall",
-            (
-                "Search JARVIS's persistent memory for stored facts relevant to a query. "
-                "Returns the most relevant entries scored by keyword overlap. "
-                "Args: query (required), limit (optional, default 5)."
-            ),
+            "Search JARVIS's persistent memory for stored facts relevant to a query. Args: query, limit.",
             recall,
             frozenset({Permission.READ}),
             risk_level="low",
         ),
         ToolSpec(
             "forget_memory",
-            (
-                "Delete a stored memory by its numeric id. "
-                "Use recall first to find the id. "
-                "Args: id (required, the numeric id from a recall or list_memories result)."
-            ),
+            "Permanently delete a stored memory by numeric id. Use recall first to identify the id.",
             forget_memory,
-            frozenset({Permission.READ, Permission.WRITE}),
-            risk_level="low",
+            frozenset({Permission.WRITE}),
+            risk_level="high",
+            reversible=False,
+            requires_approval=True,
         ),
         ToolSpec(
             "list_memories",
-            (
-                "List stored memories, optionally filtered by category. "
-                "Args: category (optional — leave empty to list all memories)."
-            ),
+            "List stored memories, optionally filtered by category. Args: category.",
             list_memories,
             frozenset({Permission.READ}),
             risk_level="low",
         ),
-        # ── Browser ──────────────────────────────────────────────────
         ToolSpec(
             "browse_url",
-            (
-                "Fetch a public web page and return its readable text, title, and links. "
-                "Use this to look up current information, read articles, or verify facts. "
-                "Only public http/https URLs are permitted; local services are blocked. "
-                "Does not render JavaScript — some dynamic content may be absent. "
-                "Args: url (required, full URL including https://)."
-            ),
+            "Fetch a public web page and return readable text, title, and links. Public http/https only; no JavaScript rendering.",
             browse_url,
             frozenset({Permission.NETWORK}),
             risk_level="low",
