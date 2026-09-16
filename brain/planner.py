@@ -18,7 +18,22 @@ TOOL_PATTERN = re.compile(
 class Agent:
     def __init__(self, tools: dict[str, ToolSpec | Callable[..., Any]]) -> None:
         self.tools = tools
-        self.messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        self.messages: list[dict[str, str]] = [
+            {"role": "system", "content": self._system_prompt_with_tools()}
+        ]
+
+    def _system_prompt_with_tools(self) -> str:
+        """Give the model the live registry contract instead of a stale tool list."""
+        catalog: list[dict[str, Any]] = []
+        for name, tool in sorted(self.tools.items()):
+            if isinstance(tool, ToolSpec):
+                catalog.append(tool.schema())
+            else:
+                catalog.append({
+                    "name": name,
+                    "description": "Legacy callable tool.",
+                })
+        return f"{SYSTEM_PROMPT}\n\nLIVE TOOL CATALOG:\n{json.dumps(catalog, indent=2, default=str)}"
 
     def _execute_tool(self, tool_name: str, raw_args: str | None) -> dict[str, Any] | Any:
         tool = self.tools.get(tool_name)
