@@ -3,33 +3,14 @@ tools/browser.py
 =================
 Fetch a web page and return its readable text content to the JARVIS agent.
 
-This replaces the previous ``not_implemented`` stub with a real, stdlib-only
-implementation. It is intentionally narrow in scope:
-
-  - Fetches a URL over http/https with a sane timeout
-  - Strips <script>, <style>, <nav>, <header>, <footer> noise
-  - Returns the page title, readable text, and outbound links
-  - Truncates output so a single page cannot blow the model's context window
-  - Guards against SSRF (server-side request forgery): the model cannot use
-    this tool to reach JARVIS's own local services (Ollama, OmniRoute, etc.)
-
-Out of scope for this version (documented, not silently missing):
-  - JavaScript rendering (no Playwright/headless browser dependency)
-  - Multi-page crawling or link following
-  - Cookie/session/authentication handling
-
-No external dependencies. Uses only ``urllib`` and ``html.parser`` from the
-Python standard library.
-
-Tool registration (tools/registry.py):
-    ToolSpec("browse_url", ..., browse_url, frozenset({Permission.NETWORK}), risk_level="low")
-
-Tool call the model emits:
-    TOOL_CALL:browse_url:{"url": "https://example.com/article"}
+Static, public-web-only browser fetcher with SSRF protection and response
+limits. JavaScript rendering, authentication, crawling, and sessions remain
+out of scope for this V1 tool.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import socket
@@ -43,22 +24,14 @@ _TIMEOUT = float(os.environ.get("JARVIS_BROWSER_TIMEOUT", "12"))
 _MAX_BYTES = int(os.environ.get("JARVIS_BROWSER_MAX_BYTES", str(2_000_000)))
 _MAX_TEXT = int(os.environ.get("JARVIS_BROWSER_MAX_TEXT_CHARS", "8000"))
 _MAX_LINKS = 25
+_MAX_REDIRECTS = 5
 
-_USER_AGENT = (
-    "Mozilla/5.0 (compatible; JARVIS-personal-agent/1.0; "
-    "+https://github.com/Muneer148/JARVIS)"
-)
-
+_USER_AGENT = "Mozilla/5.0 (compatible; JARVIS-personal-agent/1.0)"
 _NOISE_TAGS = frozenset({"script", "style", "nav", "header", "footer", "noscript", "svg", "aside"})
-_BLOCK_TAGS = frozenset({
-    "p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6",
-    "tr", "blockquote", "section", "article", "pre", "code",
-})
+_BLOCK_TAGS = frozenset({"p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "blockquote", "section", "article", "pre", "code"})
 
 
 class _TextExtractor(HTMLParser):
-    """Minimal readable-text extractor. No external deps, fully inspectable."""
-
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self._title_parts: list[str] = []
@@ -67,7 +40,7 @@ class _TextExtractor(HTMLParser):
         self._chunks: list[str] = []
         self._link_href: str | None = None
         self._link_parts: list[str] = []
-        self.links: list[tuple[str, str]] = []  # (link_text, href)
+        self.links: list[tuple[str, str]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attrs_dict = dict(attrs)
@@ -119,82 +92,79 @@ class _TextExtractor(HTMLParser):
         return raw.strip()
 
 
-# ------------------------------------------------------------------
-# SSRF guard — prevent the model from reaching JARVIS's own local
-# services (Ollama on 11434, OmniRoute on 20128, etc.)
-# ------------------------------------------------------------------
-
-_LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+def _is_private_ip(ip: str) -> bool:
+    """Reject addresses that must never be reachable by the web tool."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    return any((
+        address.is_private,
+        address.is_loopback,
+        address.is_link_local,
+        address.is_reserved,
+        address.is_multicast,
+        address.is_unspecified,
+    ))
 
 
 def _is_safe_url(url: str) -> tuple[bool, str]:
-    """Return (safe, reason). Reject local/internal targets."""
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         return False, "Only http:// and https:// URLs are supported"
-    if not parsed.netloc:
+    if not parsed.hostname:
         return False, "URL is missing a host"
 
-    hostname = (parsed.hostname or "").lower()
-    if hostname in _LOCAL_HOSTNAMES:
-        return False, "Requests to local/loopback addresses are not permitted"
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname in {"localhost", "localhost.localdomain"}:
+        return False, "Requests to local hostnames are not permitted"
 
     try:
-        resolved = {info[4][0] for info in socket.getaddrinfo(hostname, None)}
-    except socket.gaierror:
+        infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    except (socket.gaierror, OSError, ValueError):
         return False, f"Could not resolve host '{hostname}'"
 
-    for ip in resolved:
-        if _is_private_ip(ip):
-            return False, "Requests to private/internal network ranges are not permitted"
-
+    addresses = {info[4][0] for info in infos}
+    if not addresses:
+        return False, f"Could not resolve host '{hostname}'"
+    if any(_is_private_ip(ip) for ip in addresses):
+        return False, "Requests to private/internal network ranges are not permitted"
     return True, ""
 
 
-def _is_private_ip(ip: str) -> bool:
-    if ip.startswith(("127.", "10.", "169.254.")):
-        return True
-    if ip in ("::1", "0.0.0.0"):
-        return True
-    if ip.startswith("192.168."):
-        return True
-    if ip.startswith("172."):
-        try:
-            second = int(ip.split(".")[1])
-            if 16 <= second <= 31:
-                return True
-        except (IndexError, ValueError):
-            pass
-    return False
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Revalidate every redirect destination instead of trusting urllib blindly."""
+
+    def _redirect_request(self, req: urllib.request.Request, fp, code: int, msg: str, headers, newurl: str):
+        safe, reason = _is_safe_url(newurl)
+        if not safe:
+            raise urllib.error.URLError(f"Redirect blocked: {reason}")
+        return super()._redirect_request(req, fp, code, msg, headers, newurl)
 
 
-# ------------------------------------------------------------------
-# Core fetch
-# ------------------------------------------------------------------
+_opener = urllib.request.build_opener(_SafeRedirectHandler())
 
 
 def _fetch(url: str) -> dict[str, Any]:
-    """Internal fetch — returns a result dict, never raises on expected failures."""
     safe, reason = _is_safe_url(url)
     if not safe:
         return {"status": "blocked", "message": reason, "url": url}
 
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+        with _opener.open(request, timeout=_TIMEOUT) as resp:
             ct = resp.headers.get_content_type() or ""
             if ct and "html" not in ct and "xhtml" not in ct:
-                return {
-                    "status": "unsupported_content_type",
-                    "message": f"Page returned Content-Type '{ct}' — not HTML",
-                    "url": url,
-                }
+                return {"status": "unsupported_content_type", "message": f"Page returned Content-Type '{ct}' — not HTML", "url": url}
             raw = resp.read(_MAX_BYTES + 1)
             over_limit = len(raw) > _MAX_BYTES
             raw = raw[:_MAX_BYTES]
             charset = resp.headers.get_content_charset() or "utf-8"
             html = raw.decode(charset, errors="replace")
             final_url = resp.geturl()
+            final_safe, final_reason = _is_safe_url(final_url)
+            if not final_safe:
+                return {"status": "blocked", "message": final_reason, "url": final_url}
     except urllib.error.HTTPError as exc:
         return {"status": "http_error", "message": f"HTTP {exc.code}: {exc.reason}", "url": url}
     except urllib.error.URLError as exc:
@@ -213,11 +183,7 @@ def _fetch(url: str) -> dict[str, Any]:
     text = extractor.text
     text_truncated = len(text) > _MAX_TEXT
     text = text[:_MAX_TEXT]
-
-    links = [
-        {"text": t, "url": urljoin(final_url, href)}
-        for t, href in extractor.links[:_MAX_LINKS]
-    ]
+    links = [{"text": t, "url": urljoin(final_url, href)} for t, href in extractor.links[:_MAX_LINKS]]
 
     return {
         "status": "ok",
@@ -226,26 +192,12 @@ def _fetch(url: str) -> dict[str, Any]:
         "text": text,
         "links": links,
         "truncated": bool(text_truncated or over_limit),
-        "note": (
-            "This page may use JavaScript for rendering. "
-            "Some content may not be visible in the static fetch."
-        ) if not extractor.text.strip() else None,
+        "note": "This page may use JavaScript for rendering. Some content may not be visible in the static fetch." if not text.strip() else None,
     }
 
 
-# ------------------------------------------------------------------
-# Tool handler — signature matches TOOL_CALL:{\"url\": \"...\"} payload
-# ------------------------------------------------------------------
-
-
 def browse_url(url: str) -> dict[str, Any]:
-    """Fetch a web page and return its readable text, title, and links.
-
-    Only public http/https URLs are supported. Local services are blocked.
-
-    Args:
-        url: The full URL to fetch (e.g. https://example.com/article).
-    """
+    """Fetch a public web page and return its readable text, title, and links."""
     if not url or not url.strip():
         return {"status": "error", "message": "'url' is required"}
     return _fetch(url.strip())
