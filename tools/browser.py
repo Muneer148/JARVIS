@@ -120,7 +120,11 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
         return False, "Requests to local hostnames are not permitted"
 
     try:
-        infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+        infos = socket.getaddrinfo(
+            hostname,
+            parsed.port or (443 if parsed.scheme == "https" else 80),
+            type=socket.SOCK_STREAM,
+        )
     except (socket.gaierror, OSError, ValueError):
         return False, f"Could not resolve host '{hostname}'"
 
@@ -134,6 +138,8 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
 
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Revalidate every redirect destination instead of trusting urllib blindly."""
+
+    max_redirections = _MAX_REDIRECTS
 
     def _redirect_request(self, req: urllib.request.Request, fp, code: int, msg: str, headers, newurl: str):
         safe, reason = _is_safe_url(newurl)
