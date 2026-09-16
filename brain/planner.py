@@ -7,6 +7,7 @@ from typing import Any, Callable
 from brain.prompts import SYSTEM_PROMPT
 from brain.router import chat
 from config.settings import MAX_TOOL_ROUNDS
+from tools.base import ToolSpec
 
 TOOL_PATTERN = re.compile(
     r"^TOOL_CALL:(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?::(?P<args>\{.*\}))?\s*$",
@@ -15,7 +16,7 @@ TOOL_PATTERN = re.compile(
 
 
 class Agent:
-    def __init__(self, tools: dict[str, Callable[..., Any]]) -> None:
+    def __init__(self, tools: dict[str, ToolSpec | Callable[..., Any]]) -> None:
         self.tools = tools
         self.messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -35,6 +36,8 @@ class Agent:
             args = parsed
 
         try:
+            if isinstance(tool, ToolSpec):
+                return tool.execute(**args)
             return tool(**args)
         except TypeError as exc:
             return {"status": "error", "error": f"Invalid arguments for {tool_name}: {exc}"}
