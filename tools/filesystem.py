@@ -98,13 +98,15 @@ def execute_plan(downloads: Path, plan: dict[str, list[str]]) -> dict[str, Any]:
 
 
 def organize_downloads(downloads: Path) -> str:
+    """Analyze and execute a validated download organization plan.
+
+    Authorization is deliberately handled by JARVIS's PermissionEngine rather
+    than by an interactive prompt inside this tool. This keeps approval policy
+    centralized and makes the tool safe to invoke from console, tests, MCP,
+    or future UI/voice clients.
+    """
     analysis = analyze_downloads(downloads)
     if analysis.get("status") != "ok":
         return str(analysis)
-    plan = analysis["plan"]
-    print("\n" + _format_plan(plan))
-    answer = input("\nJARVIS wants permission to organize these files. Execute? (yes/no): ").strip().lower()
-    if answer not in {"yes", "y"}:
-        return "Organization cancelled. No files were moved."
-    result = execute_plan(downloads, plan)
+    result = execute_plan(downloads, analysis["plan"])
     return str(result)
