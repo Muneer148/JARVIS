@@ -1,2 +1,7 @@
-# JARVIS v1 intentionally uses the Python standard library.
-# Optional voice/vision/browser dependencies will be added in later milestones.
+# Core
+
+# Local voice input
+sounddevice>=0.5.0
+faster-whisper>=1.1.0
+
+# Windows text-to-speech uses built-in System.Speech; no extra TTS package is required.
