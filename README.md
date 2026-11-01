@@ -9,11 +9,13 @@ JARVIS is intended to become a dependable catalyst for research, coding, analysi
 ## What we are building
 
 - A unified JARVIS interface for requests, task status, approvals, and results.
-- A controlled orchestration layer: OpenClaw coordinates bounded tasks; Hermes is the primary reasoning and planning agent.
+- Hermes plans and replans work; Paperclip is an internal JARVIS subsystem that manages the agent workforce and task lifecycle. JARVIS remains the product and the only normal user-facing interface.
 - Replaceable worker runtimes for coding, research, and specialist analysis.
 - FreeLLMAPI as the intended local model gateway, with Ollama as a private/local fallback.
+- JARVIS-owned security and privacy controls that authorize actions, assess threats, enforce isolation, and audit activity.
 - An independent QA Sentinel that checks tests, scans, outputs, and evidence.
-- A SOC-inspired **AI Agent Operations Console** that displays agent activity, tool calls, traces, failures, approvals, model usage, and security-relevant events.
+- A SOC-inspired **AI Agent Operations Console** that displays JARVIS, Hermes, Paperclip, worker, model, tool, and security telemetry.
+- A voice interface owned by JARVIS, with speech input/output; the existing voice branch is an incomplete draft to inspect and reuse, not a completed feature.
 - Least-privilege permissions, isolated workspaces, human approval for sensitive actions, and evidence-backed completion.
 
 This is **not initially a full Security Operations Center or SIEM**. The dashboard is for observing and auditing JARVIS and its agents. Real endpoint, network, and enterprise security monitoring is a separate future scope.
@@ -23,6 +25,7 @@ This is **not initially a full Security Operations Center or SIEM**. The dashboa
 | Document | Purpose |
 |---|---|
 | [Target architecture](docs/ARCHITECTURE.md) | Components, responsibilities, data flow, and system boundaries |
+| [Architecture decision: Paperclip boundary](docs/ADR-001-paperclip-boundary.md) | JARVIS/Hermes/Paperclip ownership and security boundary |
 | [Agent operating model](docs/OPERATING_MODEL.md) | Workflows, handoffs, parallel agents, bounded swarms, and task ownership |
 | [Security model](docs/SECURITY.md) | Threat model, permission boundaries, approvals, isolation, and hardening gates |
 | [Operations console and telemetry](docs/OBSERVABILITY.md) | Dashboard design, logs, metrics, traces, event schema, and privacy |
@@ -75,7 +78,8 @@ The current default model configuration is in config/settings.py and .env.exampl
 - Keep main as the stable, reviewable baseline.
 - Build implementation work on dev/jarvis-v1 or a clearly named feature branch.
 - Keep architecture proposals and documentation reviewable on docs/jarvis-architecture-blueprint.
-- Do not merge the diverged feature/voice-assistant branch without reviewing its differences against the current development line.
+- JARVIS is never registered as a Paperclip-managed agent; Paperclip is an internal subsystem.
+- Do not merge the diverged feature/voice-assistant branch without reviewing its differences against the current development line. Its voice work is a draft/interface foundation, not a complete voice implementation.
 - Use pull requests for changes that affect architecture, security boundaries, tool execution, or orchestration.
 
 ## Security baseline
