@@ -9,7 +9,7 @@ The project is built in dependency order:
 1. Make the existing single-agent core observable and reliable.
 2. Close high-priority security gaps before expanding its permissions.
 3. Integrate the chosen model gateway and validate role-specific model/runtime compatibility.
-4. Add the orchestration and reasoning runtimes.
+4. Integrate Hermes for planning and Paperclip as JARVIS's internal agent-workforce control plane.
 5. Add isolated workers and independent QA.
 6. Build the operations console over real telemetry.
 7. Add carefully bounded swarm behavior only where needed.
@@ -82,10 +82,11 @@ Exit criteria:
 - Exact per-runtime protocol compatibility is tested; do not assume every agent runtime accepts the same endpoint.
 - The project does not claim a free endpoint has unlimited tokens.
 
-### M4 — Hermes and OpenClaw integration
+### M4 — Hermes and Paperclip integration
 Deliverables:
 - Hermes configured as the primary reasoning/planning runtime.
-- OpenClaw integrated as the task/control orchestrator.
+- Paperclip integrated as the internal agent-workforce control plane for lifecycle, assignment, scheduling, workspace/task coordination, budgets, and workflow history.
+- JARVIS retains security policy, threat assessment, authorization, privacy, approvals, audit/detection, and containment; Paperclip does not perform security assessment.
 - An adapter boundary between JARVIS policy/state and these runtimes.
 - A single bounded workflow: intake, plan, assign one read-only worker, collect evidence, verify, report.
 - Durable run/task state and pause/resume.
@@ -157,11 +158,15 @@ Exit criteria:
 - File ownership prevents concurrent conflicting edits.
 - Human approval remains outside the agents' control.
 
-### M9 — Optional capabilities
+### M9 — Voice interface and optional capabilities
+
+Voice is a JARVIS-owned interface, not a separate agent or Paperclip feature. Inspect and selectively reuse the incomplete `feature/voice-assistant` draft after comparing it with `dev/jarvis-v1`; do not merge the branch wholesale. Implement push-to-talk STT and TTS first, then conversational interruption/streaming, and only later optional wake-word activation with explicit privacy controls.
+
+
 Potential future work:
 - MCP tool ecosystem.
 - Stronger browser automation with an isolated browser profile.
-- Voice input/output.
+- Vision and controlled computer interaction.
 - Vision and controlled computer interaction.
 - Additional local models and specialist model endpoints.
 - More advanced security analysis of JARVIS's own audit stream.
