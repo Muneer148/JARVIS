@@ -1,181 +1,91 @@
 # JARVIS
 
-A local-first, action-capable personal AI assistant.
+**A local-first, security-conscious personal AI work environment with a multi-agent execution layer and a SOC-inspired operations console.**
 
-## Architecture
+JARVIS is intended to become a dependable catalyst for research, coding, analysis, and cybersecurity work. It must show what it is doing, what tools and models it used, what changed, what failed, and where human approval was required.
 
-```text
-User
-  |
-  v
-JARVIS Agent Core
-  |-- Tool Router -> deterministic Python tools -> verified results -> Agent Core
-  |
-  `-- Model Router
-        |-- Ollama (local/private/default)
-        |-- OmniRoute (local gateway -> configured upstream)
-        |-- NVIDIA (direct optional gateway)
-        `-- OpenRouter (direct optional gateway)
-```
+> **Project status (31 October 2026):** the repository has a working single-agent Python foundation. The multi-agent control plane, FreeLLMAPI integration, isolated worker execution, persistent event pipeline, and operations dashboard are architectural targets—not completed features.
 
-JARVIS is intentionally an agent, not a text-only chatbot. The model decides when a tool is needed; Python performs deterministic actions; the safety layer validates actions and handles permission boundaries. Model routing and tool routing are separate concerns.
+## What we are building
 
-## Current stack
+- A unified JARVIS interface for requests, task status, approvals, and results.
+- Hermes plans and replans work; Paperclip is an internal JARVIS subsystem that manages the agent workforce and task lifecycle. JARVIS remains the product and the only normal user-facing interface.
+- Replaceable worker runtimes for coding, research, and specialist analysis.
+- FreeLLMAPI as the intended local model gateway, with Ollama as a private/local fallback.
+- JARVIS-owned security and privacy controls that authorize actions, assess threats, enforce isolation, and audit activity.
+- An independent QA Sentinel that checks tests, scans, outputs, and evidence.
+- A SOC-inspired **AI Agent Operations Console** that displays JARVIS, Hermes, Paperclip, worker, model, tool, and security telemetry.
+- A voice interface owned by JARVIS, with speech input/output; the existing voice branch is an incomplete draft to inspect and reuse, not a completed feature.
+- Least-privilege permissions, isolated workspaces, human approval for sensitive actions, and evidence-backed completion.
 
-- Python 3.14+
-- Ollama + Qwen3:8B for the permanent local brain
-- Optional OmniRoute local gateway
-- Optional NVIDIA hosted inference
-- Optional OpenRouter direct gateway
-- Local-first model routing with fallback
-- Standard library first; optional voice/vision/browser dependencies are isolated
+This is **not initially a full Security Operations Center or SIEM**. The dashboard is for observing and auditing JARVIS and its agents. Real endpoint, network, and enterprise security monitoring is a separate future scope.
 
-## Model routing
+## Read the design before adding features
 
-`JARVIS_BRAIN_MODE` supports:
+| Document | Purpose |
+|---|---|
+| [Target architecture](docs/ARCHITECTURE.md) | Components, responsibilities, data flow, and system boundaries |
+| [Architecture decision: Paperclip boundary](docs/ADR-001-paperclip-boundary.md) | JARVIS/Hermes/Paperclip ownership and security boundary |
+| [Agent operating model](docs/OPERATING_MODEL.md) | Workflows, handoffs, parallel agents, bounded swarms, and task ownership |
+| [Security model](docs/SECURITY.md) | Threat model, permission boundaries, approvals, isolation, and hardening gates |
+| [Operations console and telemetry](docs/OBSERVABILITY.md) | Dashboard design, logs, metrics, traces, event schema, and privacy |
+| [Model routing strategy](docs/model-routing.md) | FreeLLMAPI, provider adapters, model roles, and compatibility checks |
+| [Implementation roadmap](docs/ROADMAP.md) | Milestones, acceptance criteria, and the daily one-hour working cadence |
+| [Repository audit](docs/AUDIT-2026-10-31.md) | What exists today, gaps, branch state, and known risks |
 
-- `local` — Ollama only
-- `cloud` — try OmniRoute, then NVIDIA, then OpenRouter, then local fallback
-- `nvidia` — direct NVIDIA endpoint, with local fallback on failure
-- `openrouter` — direct OpenRouter endpoint, with local fallback on failure
-- `omniroute` — local OmniRoute gateway, with local fallback on failure
-- `auto` — Ollama for routine requests; selected complex/long requests prefer OmniRoute when configured, then NVIDIA, then OpenRouter, then Ollama
+## Current implementation baseline
 
-The important distinction is that **OmniRoute is a gateway/router, not another model**. JARVIS can therefore keep one model-routing interface while the local OmniRoute instance decides which configured upstream provider/model to use.
+The current code line is on **dev/jarvis-v1**. It includes:
 
-### OmniRoute setup
+- A single-agent CLI loop with structured tool-call parsing and a bounded tool-round count.
+- Local Ollama plus optional OmniRoute, NVIDIA, and OpenRouter provider adapters.
+- A typed tool registry with JSON-schema-like descriptions, permissions, risk labels, and approval requirements.
+- Read-only system/resource/project diagnostics.
+- Deterministic Downloads analysis and organization with validation, post-action checks, and best-effort rollback.
+- Local explicit memory tools and static public-page fetching with URL checks.
+- Unit tests and a GitHub Actions test workflow.
 
-OmniRoute runs separately from JARVIS. Its default OpenAI-compatible API is:
+It does not yet implement the multi-agent architecture or operations console described above. The audit records this distinction in detail.
 
-```text
-http://localhost:20128/v1
-```
+## Working principles
 
-JARVIS expects a local OmniRoute API key because the installed OmniRoute server may require authentication. Configure the key only in the local environment:
+1. **One task, one owner.** A coding task has one write owner and one isolated workspace.
+2. **Workflow before swarm.** Use explicit, inspectable handoffs first; use a bounded swarm only when it provides a clear benefit.
+3. **No hidden success.** A model saying it completed work is not proof. Tools, tests, and verification must provide evidence.
+4. **Human control for consequential actions.** Installation, deletion, credential access, external side effects, deployments, and changes outside the approved workspace require approval.
+5. **Least privilege and isolation.** Agents only receive the tools, files, network access, and credentials required for their task.
+6. **Auditable, not theatrical.** The console shows real events and measured state, not decorative activity or fabricated SOC alerts.
+7. **Provider independence.** A model or agent runtime can be replaced without rewriting the entire system.
+8. **Cost-aware by design.** Free endpoints are treated as quota-limited services, not unlimited compute. Local models are fallbacks where practical.
+9. **Evidence over hidden reasoning.** Store concise plans, decisions, tool events, outputs, and verification evidence—not private chain-of-thought.
+10. **Build in vertical slices.** Every milestone should leave a working, testable system.
 
-```powershell
-$env:JARVIS_OMNIROUTE_ENABLED="true"
-$env:OMNIROUTE_API_KEY="YOUR_LOCAL_OMNIROUTE_KEY"
-$env:JARVIS_OMNIROUTE_MODEL="auto"
-.\.venv\Scripts\python.exe main.py
-```
+## Development setup for the current baseline
 
-If you use a non-default OmniRoute endpoint, set `OMNIROUTE_BASE_URL` or the full `JARVIS_OMNIROUTE_URL`. Do not commit API keys, passwords, tokens, cookies, or local `.env` files.
-
-JARVIS does **not** need to configure hundreds of OmniRoute providers. One working provider path is enough to validate the architecture; additional providers can be added later.
-
-## NVIDIA hosted models
-
-NVIDIA hosted inference can be enabled directly or selected by `auto` when OmniRoute is unavailable. Availability and usage limits can change, so Ollama remains the permanent local fallback.
-
-```powershell
-$env:NVIDIA_API_KEY="YOUR_KEY_HERE"
-$env:JARVIS_BRAIN_MODE="auto"
-$env:JARVIS_NVIDIA_MODEL="nvidia/nemotron-3.5-lightning-30b-a3b"
-.\.venv\Scripts\python.exe main.py
-```
-
-Never paste the key into Python source code or commit it to GitHub.
-
-## OpenRouter direct gateway
-
-OpenRouter is an optional external aggregation gateway. It is independent of the local OmniRoute process and is used only when configured.
-
-```powershell
-$env:OPENROUTER_API_KEY="YOUR_KEY_HERE"
-$env:JARVIS_BRAIN_MODE="openrouter"
-.\.venv\Scripts\python.exe main.py
-```
-
-Use a model identifier supported by your OpenRouter account/configuration through `JARVIS_OPENROUTER_MODEL`.
-
-## Diagnostics and evidence
-
-JARVIS now has read-only diagnostics for the local environment:
-
-- `system_info` — OS, Python and machine architecture
-- `resource_info` — logical CPU count, RAM usage and disk usage
-- `project_health` — required project paths, Git status, Python version and the local pytest suite
-
-Tool results are treated as verified evidence. JARVIS is instructed not to replace current tool evidence with generic assumptions about Python versions or project compatibility.
-
-## Current capabilities
-
-- Chat with the local Ollama model
-- Multi-provider model routing with local fallback
-- Explicit cloud escalation through OmniRoute/NVIDIA/OpenRouter
-- Multi-tool agent loop
-- Structured tool calls with optional JSON arguments
-- System and resource diagnostics
-- JARVIS project-health diagnostics
-- Downloads inspection and deterministic filesystem organization
-- Human approval before filesystem mutation
-- Preflight validation
-- Post-action verification
-- Best-effort rollback if an execution step fails
-- Safe terminal tool in disabled-by-default mode
-- Interfaces for applications, browser, memory, vision and voice
-
-## Windows setup
-
-1. Install Ollama and make sure the Ollama service is running.
-2. Pull the local model:
-
-```powershell
-ollama pull qwen3:8b
-```
-
-3. Clone this repository and enter it.
-4. Create a virtual environment:
+The current CI workflow uses Python 3.12. Use Python 3.12 or later for this code line, then:
 
 ```powershell
 python -m venv .venv
-```
-
-5. Install the test dependency:
-
-```powershell
 .\.venv\Scripts\python.exe -m pip install pytest
-```
-
-6. Run the tests:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-```
-
-7. Run JARVIS:
-
-```powershell
+.\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe main.py
 ```
 
-The router tests mock network providers, so they do not require API keys or live cloud services.
+The current default model configuration is in config/settings.py and .env.example. The existing provider routing is not yet the final FreeLLMAPI integration; see the model-routing document before changing it.
 
-## Safety model
+## Repository and branch discipline
 
-Filesystem mutation follows:
+- Keep main as the stable, reviewable baseline.
+- Build implementation work on dev/jarvis-v1 or a clearly named feature branch.
+- Keep architecture proposals and documentation reviewable on docs/jarvis-architecture-blueprint.
+- JARVIS is never registered as a Paperclip-managed agent; Paperclip is an internal subsystem.
+- Do not merge the diverged feature/voice-assistant branch without reviewing its differences against the current development line. Its voice work is a draft/interface foundation, not a complete voice implementation.
+- Use pull requests for changes that affect architecture, security boundaries, tool execution, or orchestration.
 
-```text
-Analyze -> Plan -> Validate -> Human approval -> Execute -> Verify -> Roll back on failure
-```
+## Security baseline
 
-JARVIS never claims an action was completed merely because the model requested it. Python tools return the actual execution result.
+Never commit API keys, passwords, access tokens, cookies, private user documents, or local .env files. Keep terminal execution disabled until the security requirements in [SECURITY.md](docs/SECURITY.md) are implemented and tested.
 
-## Roadmap
+---
 
-1. Core local + multi-model agent loop
-2. Harden multi-tool reasoning and tool schemas
-3. More filesystem operations
-4. Persistent memory
-5. Terminal and application control with explicit permission scopes
-6. MCP tool integration
-7. Browser automation
-8. Local speech-to-text and text-to-speech
-9. Vision and computer interaction
-10. Specialized model routing for embeddings, OCR, speech and vision
-11. Additional free/optional model providers
-
-## Security
-
-Never put API keys, passwords, tokens, browser cookies, personal documents, or `.env` files into this repository. JARVIS should run with the minimum permissions necessary.
+**North-star outcome:** JARVIS should be a useful personal AI work environment whose actions are understandable, observable, bounded, verifiable, and under the user's control.
