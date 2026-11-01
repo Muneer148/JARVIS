@@ -116,6 +116,13 @@ Tool results are treated as verified evidence. JARVIS is instructed not to repla
 - Safe terminal tool in disabled-by-default mode
 - Interfaces for applications, browser, memory, vision and voice
 
+## Documentation
+
+- [Open-source agent ecosystem research](docs/research/open-source-agent-ecosystem.md) — 31 candidate repositories across 10 engineering areas, comparison, integration mapping and audit priorities.
+- [Security engineering blueprint](docs/architecture/security-engineering-blueprint.md) — proposed security control plane, threat model, execution isolation, policy requirements and implementation phases.
+
+These documents are research and target-architecture baselines. They do not imply that every listed component has been adopted or that all proposed security controls are already implemented.
+
 ## Windows setup
 
 1. Install Ollama and make sure the Ollama service is running.
