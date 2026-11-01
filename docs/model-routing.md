@@ -57,7 +57,7 @@ Maintain a matrix such as:
 | Runtime | Required API/protocol | Gateway/model test | Tool calling | Streaming | Status |
 |---|---|---|---|---|---|
 | Hermes | Verify the runtime's configured provider protocol | Pending repo integration | Pending | Pending | Not connected |
-| OpenClaw | Verify orchestration's model/runtime interface | Pending | Pending | Pending | Not connected |
+| Paperclip | Verify orchestration's model/runtime interface | Pending | Pending | Pending | Not connected |
 | Claude Code | Verify compatible Anthropic/provider endpoint and tool behavior | Pending | Pending | Pending | Not connected |
 | OpenCode | Verify provider adapter and tool behavior | Pending | Pending | Pending | Not installed/integrated |
 | DeepSeek Harness | Verify required API/runtime interface | Pending | Pending | Pending | Experimental/not integrated |
@@ -133,6 +133,6 @@ A candidate is ready for a role only after its tests pass for that role and runt
 3. Add tests using a mocked OpenAI-compatible server; no real API key is required in CI.
 4. Add an opt-in local smoke test using a configured model.
 5. Validate Hermes against the adapter.
-6. Validate OpenClaw and each worker runtime separately.
+6. Validate Paperclip and each worker runtime separately.
 7. Add role-based model registry only after runtime compatibility is known.
 8. Add dynamic fallback and budgets with explicit privacy classification and events.
