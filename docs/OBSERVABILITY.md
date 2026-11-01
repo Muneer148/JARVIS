@@ -1,6 +1,6 @@
 # JARVIS Agent Operations Console and telemetry
 
-**Product definition:** a SOC-inspired monitor for JARVIS agents, runtimes, models, tools, and approvals. This is not a full SOC or SIEM in the first release.
+**Product definition:** a JARVIS-owned Agent Operations Console with SOC-inspired investigation UX for JARVIS, Hermes, Paperclip, worker agents, runtimes, models, tools, and security controls. It is not a full SOC or SIEM in the first release. Security assessment and enforcement remain in JARVIS; Paperclip is only one telemetry/workflow source.
 
 ## 1. Purpose
 
@@ -31,9 +31,9 @@ A dashboard is not a security control by itself. It becomes useful only when rea
 ### B. Agent activity stream
 A chronological stream of actual events, for example:
 - Hermes created a plan.
-- OpenClaw assigned task T-014 to the researcher.
+- Paperclip assigned task T-014 to the researcher.
 - Research worker fetched an approved source.
-- OpenClaw handed task T-014 to a coding worker.
+- Paperclip handed task T-014 to a coding worker.
 - The coder changed three files in worktree W-03.
 - QA Sentinel reported one failing test.
 - The task owner submitted a fix.
@@ -60,7 +60,11 @@ Show pending actions with requester, exact target, permission requested, risk, r
 ### F. Model/provider health
 Show selected provider/model, adapter/runtime, latency, timeout/error, fallback, token usage when available, and rate-limit/cooldown state. Distinguish gateway failure from model output failure.
 
-### G. Security events
+### G. JARVIS security events
+
+Security findings, policy decisions, and containment actions are produced and owned by JARVIS. Paperclip can contribute task/agent lifecycle events, but it must not perform or approve security assessments.
+
+
 Examples include policy denial, attempted out-of-workspace access, forbidden network target, secret-redaction event, repeated failed tool calls, retry-loop threshold, unexpected worker spawn, and suspicious command request.
 
 Label each record as:
@@ -78,7 +82,7 @@ These are related but different telemetry signals.
 |---|---|---|
 | Log/event | What happened at a particular time? | Tool call denied by policy |
 | Metric | How often or how much? | 12 failed tool calls today; median model latency |
-| Trace | How did one request move through the system? | Request → Hermes → OpenClaw → worker → model → tool → QA |
+| Trace | How did one request move through the system? | User → JARVIS → Hermes → Paperclip → worker → model → tool → QA |
 
 A trace is composed of spans. A span represents an operation with a start/end time, attributes, and parent context. Logs should carry the trace and span IDs when possible so that events from separate processes can be correlated.
 
@@ -173,7 +177,7 @@ Start small and local:
 3. Persist run/task state and events locally with SQLite. Treat the event table as append-only at the application/API level; the dashboard uses read-only access.
 4. Store bulky test outputs, diffs, and reports as run artifacts; link to them from events.
 5. Add filters and a simple CLI event viewer before building the graphical dashboard.
-6. Add run/trace/span propagation when Hermes, OpenClaw, and worker runtimes are connected.
+6. Add run/trace/span propagation when Hermes, Paperclip, and worker runtimes are connected.
 7. Evaluate OpenTelemetry instrumentation/export only when it makes cross-process correlation easier. Do not start by deploying a large SIEM/logging stack.
 
 ## 7. Metrics worth collecting
