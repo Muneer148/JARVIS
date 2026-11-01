@@ -179,7 +179,7 @@ The first end-to-end demonstration should be read-only and small:
 
 1. User asks JARVIS to inspect a bounded repository.
 2. Hermes produces a short plan and acceptance criteria.
-3. OpenClaw assigns one research/inspection worker.
+3. Paperclip assigns one research/inspection worker.
 4. The worker returns evidence with file references.
 5. QA Sentinel checks the report against the source.
 6. The event store records each step.
