@@ -1,6 +1,8 @@
 # JARVIS agent operating model
 
-**Default pattern: explicit workflow with a supervisor. Swarm handoffs are an optional, bounded tool—not the default architecture.**
+**Default pattern: Hermes plans, Paperclip coordinates the workforce, and JARVIS enforces security. Swarm handoffs are optional and bounded—not the default architecture.**
+
+JARVIS is the product and primary user interface. The user normally speaks/types only to JARVIS. Hermes decomposes goals and replans; Paperclip manages worker-agent lifecycle and task coordination. JARVIS—not Paperclip—owns threat assessment, security policy, authorization, privacy, approvals, and containment.
 
 ## 1. Why multiple agents?
 
@@ -12,7 +14,7 @@ The project should first make one agent and one deterministic tool reliable, the
 
 | Role | Input | Output | Write access |
 |---|---|---|---|
-| OpenClaw control tower | User goal, policy, current run state | Task assignments, dependency graph, run status, handoff decisions | Orchestration state only |
+| Paperclip workforce control plane | Hermes task graph, JARVIS-approved constraints | Agent lifecycle, task assignment/status, scheduling, workspace/lock management, workflow history | Paperclip coordination state only; no security-policy authority |
 | Hermes planner/reasoner | User request, relevant context, policy limits | Concise plan, acceptance criteria, task briefs, risk notes | No unrestricted project writes |
 | Research worker | Read-only task brief and approved sources | Findings with source/evidence references | Read-only by default |
 | Coding worker | One owned task, assigned worktree, allowed tools | Diff, implementation notes, test evidence | Only its assigned worktree |
@@ -29,7 +31,7 @@ Example:
 
 1. Hermes defines the problem and acceptance criteria.
 2. Research worker gathers facts or inspects the repository.
-3. Hermes/OpenClaw turns findings into one implementation brief.
+3. Hermes turns findings into one implementation brief; Paperclip records and coordinates the assigned work.
 4. One coding worker owns and changes the files.
 5. QA Sentinel runs tests and reviews the diff.
 6. Human approves integration or any consequential action.
@@ -39,7 +41,7 @@ This pattern is predictable, easy to audit, and appropriate for most coding and 
 
 ### B. Parallel fan-out — only for independent read tasks
 
-OpenClaw may send independent read-only subtasks to multiple workers, for example:
+Paperclip may schedule independent read-only subtasks to multiple workers, for example:
 - Worker A inspects the API layer.
 - Worker B inspects the permission model.
 - Worker C checks the test suite.
@@ -87,7 +89,7 @@ A worker must return a structured result:
 - risks and unresolved questions;
 - recommended next handoff, if any.
 
-A natural-language statement such as “done” is not a completion signal. The orchestrator checks the contract and required evidence.
+A natural-language statement such as “done” is not a completion signal. Paperclip checks task/workflow state and required evidence references; JARVIS independently enforces security policy, and QA Sentinel verifies deliverables.
 
 ## 5. Ownership and write-conflict rules
 
@@ -96,12 +98,16 @@ A natural-language statement such as “done” is not a completion signal. The 
 3. Two workers must not modify the same working tree concurrently.
 4. Parallel read-only analysis is allowed when access is scoped.
 5. QA and reviewers do not silently change the implementation they are reviewing.
-6. If two tasks need the same file, OpenClaw serializes the writes or creates a merge/integration task.
+6. If two tasks need the same file, Paperclip serializes the writes or creates a merge/integration task.
 7. Only the integration step can propose merging a task branch, and the human retains final approval.
 
-## 6. Human approval boundaries
+## 6. JARVIS security and human approval boundaries
 
-The default policy is human approval before:
+Paperclip may represent workflow review states and surface approval requests, but it is not the security assessor or policy authority. JARVIS evaluates the requested action, enforces authorization at execution time, applies privacy/network/workspace rules, and decides whether human approval is required. Paperclip cannot approve an action on JARVIS's behalf.
+
+
+
+The JARVIS-owned default policy is human approval before:
 - deleting, overwriting, or moving user data outside a narrowly defined reversible workflow;
 - installing software, packages, extensions, or system services;
 - executing commands with broad system impact;
@@ -129,7 +135,7 @@ The first useful demonstration should be deliberately small:
 
 1. User asks JARVIS to inspect a small repository and identify one bounded improvement.
 2. Hermes writes a concise plan and acceptance criteria.
-3. OpenClaw assigns one read-only research/inspection worker.
+3. Paperclip assigns one read-only research/inspection worker.
 4. The worker returns findings with file and line references.
 5. OpenClaw assigns one coding worker to one isolated worktree for a small change.
 6. QA Sentinel runs the relevant tests and inspects the diff.
