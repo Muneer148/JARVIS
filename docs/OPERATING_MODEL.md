@@ -137,7 +137,7 @@ The first useful demonstration should be deliberately small:
 2. Hermes writes a concise plan and acceptance criteria.
 3. Paperclip assigns one read-only research/inspection worker.
 4. The worker returns findings with file and line references.
-5. OpenClaw assigns one coding worker to one isolated worktree for a small change.
+5. Paperclip assigns one coding worker to one isolated worktree for a small change.
 6. QA Sentinel runs the relevant tests and inspects the diff.
 7. The dashboard displays the real task handoffs, model calls, tool events, test outcome, and approval state.
 8. The user decides whether to integrate the change.
