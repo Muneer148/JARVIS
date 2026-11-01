@@ -10,13 +10,15 @@ The dashboard is a **JARVIS Agent Operations Console with SOC-inspired UX**. It 
 
 ## 2. Logical architecture
 
-The architecture has three planes.
+The architecture has four logical planes. **JARVIS is the product and system boundary; Paperclip is an internal subsystem, never the product or a user-facing agent.** See [ADR-001](ADR-001-paperclip-boundary.md).
+
+**User interaction:** User → JARVIS (text or voice) → Hermes (planning/replanning) → Paperclip (agent workforce control) → worker agents → Paperclip → Hermes → JARVIS → user. JARVIS applies policy before any consequential execution and synthesises the final response.
 
 **Control plane**
 - JARVIS interface: user requests, run history, status, approvals, and final results.
-- OpenClaw: control tower for task assignment, sequencing, handoffs, pause/resume, budgets, and stop conditions.
+- Paperclip: internal agent-workforce control plane for agent lifecycle, task assignment/status, scheduling/heartbeats, workspaces, task locks, budgets, reviews, and workflow history. It does not own JARVIS security policy.
 - Hermes: primary reasoning and planning agent. It interprets requests, prepares concise plans, defines acceptance criteria, and produces task briefs.
-- Policy gate: applies tool allowlists, risk rules, workspace scope, budgets, and approval requirements.
+- JARVIS security plane: policy enforcement, privacy classification, threat assessment, permission checks, approval decisions, isolation requirements, audit/detection, and containment. Enforcement must sit at the actual tool/runtime execution boundary.
 
 **Execution plane**
 - Coding workers: Claude Code when its runtime/provider path is usable; OpenCode as an alternative; DeepSeek Harness as an experimental specialist.
@@ -32,7 +34,7 @@ The architecture has three planes.
 - A model adapter normalizes requests, tool calls, usage, errors, and provider metadata for each supported runtime.
 
 **Observability plane**
-- Event and audit pipeline records runs, tasks, agent handoffs, model calls, tool executions, approvals, tests, errors, and security events.
+- JARVIS-owned event and audit pipeline records runs, tasks, agent handoffs, model calls, tool executions, approvals, tests, errors, and security events. Paperclip supplies workflow events; JARVIS correlates and evaluates them.
 - Run/task state store retains lifecycle state and references to evidence.
 - Read-only operations dashboard presents activity, traces, approvals, health, and model usage.
 
@@ -43,7 +45,8 @@ These are logical boundaries. They are not claims that every component is instal
 | Component | Owns | Current status |
 |---|---|---|
 | JARVIS interface | User interaction, run status, approvals, results | CLI exists; unified UI planned |
-| OpenClaw | Delegation, task sequencing, run limits, handoffs | Not integrated |
+| Paperclip | Internal agent workforce lifecycle, task coordination, scheduling, workspaces, budgets, workflow history | Not integrated |
+| JARVIS security plane | Threat assessment, policy, privacy gate, authorization, approvals, audit/detection, containment | Partial foundation; target controls not complete |
 | Hermes | Reasoning, planning, acceptance criteria, task briefs | Not integrated |
 | FreeLLMAPI | Local model gateway and provider selection | Installed/tested separately; repo adapter absent |
 | Model adapters | Normalized model requests and health/usage events | Ollama, OmniRoute, NVIDIA, OpenRouter exist; FreeLLMAPI planned |
@@ -54,7 +57,7 @@ These are logical boundaries. They are not claims that every component is instal
 | Event pipeline | Correlated, structured audit data | Not implemented |
 | Operations console | Read-only visualisation of actual activity | Not implemented |
 
-OpenClaw coordinates work; it does not grant permissions. Hermes plans; it does not receive unrestricted machine access. Workers execute assigned tasks; they cannot expand their own scope. QA Sentinel verifies; the worker cannot approve its own result. FreeLLMAPI is a gateway, not a model and not a source of unlimited free inference.
+Paperclip coordinates the workforce; it does not assess or authorize security-sensitive actions. Hermes plans and replans; it does not execute unrestricted machine actions. JARVIS owns security policy and enforces it at execution boundaries. Workers execute assigned tasks; they cannot expand their own scope. QA Sentinel verifies; the worker cannot approve its own result. FreeLLMAPI is a gateway, not a model and not a source of unlimited free inference.
 
 ## 4. Model strategy
 
@@ -87,7 +90,7 @@ DeepSeek V4.1 Flash, GLM 5.3 Flash, Gemma 4 variants, and newly listed models re
 1. Intake creates a run ID, captures the requested outcome, and classifies sensitivity.
 2. Policy gate selects the workspace, allowed tools, network scope, budget, and approvals.
 3. Hermes creates a concise plan, bounded subtasks, acceptance criteria, and risk notes.
-4. OpenClaw creates task records and assigns one owner per task.
+4. Paperclip creates/manages task records and assigns one owner per task under the plan and constraints supplied by Hermes.
 5. Workers act in isolated workspaces. Each tool call is authorized and emits an event.
 6. The run pauses for approval when an action crosses a permission boundary.
 7. QA Sentinel runs deterministic checks and independent review. Failures return to the task owner with a retry limit.
@@ -109,7 +112,7 @@ Every coding task gets a dedicated branch or Git worktree. One task has one writ
 
 The target dashboard has seven core areas:
 1. Run overview: active, completed, failed, and paused runs; duration and token/cost totals when available.
-2. Agent activity stream: real events such as Hermes planning, OpenClaw assignment, worker edits, and QA failures.
+2. Agent activity stream: real events such as Hermes planning, Paperclip assignment, worker edits, and QA failures.
 3. Trace timeline: one run expanded into agent handoffs, model calls, tools, approvals, and tests.
 4. Tool/command audit: tool, redacted arguments, permission scope, workspace, outcome, duration, and evidence.
 5. Approval queue: pending actions showing target, risk, requested scope, and approve/deny outcome.
@@ -128,8 +131,12 @@ Propagate run/trace IDs and parent-child span IDs across runtimes. Begin with st
 
 ## 9. Initial non-goals
 
-Do not start with a full SOC/SIEM, enterprise endpoint/network telemetry, always-running agents, unbounded swarms, automatic deployments or external account actions, Kubernetes, or extensive voice/vision/desktop automation. Stabilise agent execution, policy, audit, and verification first.
+Do not start with a full SOC/SIEM, enterprise endpoint/network telemetry, always-running agents, unbounded swarms, automatic deployments or external account actions, Kubernetes, or extensive vision/desktop automation. JARVIS voice input/output is a planned interface capability; begin with push-to-talk and TTS after core policy and telemetry are dependable. Stabilise agent execution, policy, audit, and verification first.
 
-## 10. Definition of done
+## 10. Voice interface
+
+Voice is an interface to JARVIS, not a separate agent or orchestration path. The intended pipeline is microphone capture → speech-to-text → JARVIS request/session layer → the same security and planning path used by text → response text → text-to-speech → playback. Start with push-to-talk and spoken responses; add interruption/streaming and optional wake-word activation only after privacy, recording indicators, and local processing boundaries are designed. The `feature/voice-assistant` branch contains an incomplete draft/interface foundation and must be reviewed against `dev/jarvis-v1`; do not merge it blindly or claim voice is implemented.
+
+## 11. Definition of done
 
 A feature is done only when it has a named owner and bounded scope; documented permissions and side effects; reproducible tests or verification; correlated events; known failure/rollback behavior; visible dashboard evidence; and updated documentation that reflects what is actually implemented.
