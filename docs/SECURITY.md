@@ -16,6 +16,8 @@ Protect:
 
 JARVIS must not become a privileged shell where model-generated text is executed without policy checks.
 
+**Ownership boundary:** all cybersecurity layers belong to JARVIS: threat assessment, security policy, authorization, privacy/data classification, approval decisions, audit/detection, and containment. Paperclip is not a security assessment component and must not approve or authorize its own agents' actions. It may provide workflow/task events to JARVIS, but JARVIS must enforce policy at the actual tool/runtime boundary before execution.
+
 ## 2. Threat model
 
 | Threat | Example | Required response |
@@ -40,7 +42,7 @@ Every tool/action must declare:
 - timeout and resource limits;
 - the role(s) allowed to invoke it.
 
-The policy engine must evaluate the actual tool and arguments—not only the tool name. A read-only tool should not be able to smuggle a write, network, or system action through an argument. Unknown tools and unknown permission classes are denied.
+The JARVIS-owned policy engine must evaluate the actual tool and arguments—not only the tool name. Paperclip workflow status, review state, or agent role is not a substitute for this authorization check. A read-only tool should not be able to smuggle a write, network, or system action through an argument. Unknown tools and unknown permission classes are denied.
 
 ### Default policy
 
@@ -132,7 +134,7 @@ Record pending, approved, denied, expired, and cancelled states. Approval must h
 
 ## 9. Observability and privacy
 
-The audit stream should include what happened, who/which agent initiated it, which tool was used, permission scope, result, and correlation IDs. It should not contain hidden chain-of-thought, API keys, complete environment variables, cookies, private keys, or unnecessary personal data.
+The JARVIS-owned audit stream should include what happened, who/which agent initiated it, which tool was used, permission scope, result, and correlation IDs. Paperclip can be an event source, but it is not the security authority. It should not contain hidden chain-of-thought, API keys, complete environment variables, cookies, private keys, or unnecessary personal data.
 
 Store concise plan summaries and decision reasons, not private internal reasoning. Redact secrets and sensitive values before data reaches the dashboard. Limit access and retention. The dashboard should be read-only for audit history.
 
