@@ -1,0 +1,2 @@
+# JARVIS v1 intentionally uses the Python standard library.
+# Optional voice/vision/browser dependencies will be added in later milestones.
