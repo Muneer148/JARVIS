@@ -29,3 +29,26 @@ Use this page to keep a factual record of the one-hour sessions. Record what cha
 - Design the versioned event dataclass and central event-writer interface.
 - Add tests for event serialization and redaction before instrumenting model/tool execution.
 - Keep the change limited to the telemetry foundation; do not connect new agents in the same task.
+
+## Session 1 — 1 November 2026
+
+**Focus:** correct the product boundary and record the JARVIS voice interface decision.
+
+**Completed**
+- Reaffirmed JARVIS as the product and primary user interface; JARVIS is not a Paperclip-managed agent.
+- Defined Hermes as planner/replanner and Paperclip as the internal agent-workforce control plane.
+- Explicitly assigned security policy, threat assessment, authorization, privacy gates, approvals, audit/detection, and containment to JARVIS—not Paperclip.
+- Updated README, architecture, operating model, security, observability, model-routing, and roadmap documentation.
+- Added ADR-001 to make the responsibility boundary authoritative.
+- Recorded the existing `feature/voice-assistant` branch as an incomplete draft to inspect and selectively reuse, not merge wholesale.
+
+**Verification / limitations**
+- Documentation changes were committed to `docs/jarvis-architecture-blueprint`.
+- No runtime code was changed.
+- The voice branch was not merged or implemented in this session.
+- No tests or dynamic security tests were run; this was a documentation-only architecture correction.
+
+**Next bounded task after midterms**
+- Inspect the exact voice draft files and compare their commits/diff against `dev/jarvis-v1`.
+- Identify reusable STT/TTS interfaces and tests; produce a safe porting plan before changing runtime code.
+- Keep voice on the same JARVIS request/session and security path as typed input.
