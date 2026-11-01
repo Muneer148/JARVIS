@@ -50,7 +50,7 @@ A local HTTP listener must remain bound to loopback unless the user explicitly a
 
 ## 4. Runtime compatibility matrix
 
-A provider model passing a chat-completion smoke test does not prove it works with Hermes, OpenClaw, Claude Code, OpenCode, or another worker.
+A provider model passing a chat-completion smoke test does not prove it works with Hermes, Paperclip, Claude Code, OpenCode, or another worker.
 
 Maintain a matrix such as:
 
